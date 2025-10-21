@@ -1,0 +1,279 @@
+<!DOCTYPE html>
+<html lang="zh">
+<head>
+<meta charset="UTF-8">
+<title>TXT 去重工具</title>
+<style>
+html, body {
+    margin: 0;
+    padding: 0;
+    font-family: Arial, sans-serif;
+    height: 100%;
+    overflow: hidden;
+    color: #fff;
+    display: flex;
+    justify-content: flex-start;
+}
+
+.bg-container {
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    background: url('{{ bg_url }}?t={{ timestamp }}') no-repeat center center;
+    background-size: cover;
+    z-index: -999;
+    animation: floatBG 60s linear infinite alternate;
+}
+
+@keyframes floatBG {
+    0% { transform: translate(0, 0) scale(1); }
+    25% { transform: translate(-1vw, 0.5vh) scale(1.01); }
+    50% { transform: translate(-2vw, 1vh) scale(1.02); }
+    75% { transform: translate(-1vw, 0.5vh) scale(1.01); }
+    100% { transform: translate(0, 0) scale(1); }
+}
+
+/* Left Container Styling */
+.container {
+    display: flex;
+    flex-direction: column;
+    justify-content: flex-start;
+    padding: 4vh 4vw;
+    background: rgba(0, 0, 0, 0.55);
+    border-radius: 20px;
+    border: 1px solid rgba(255, 255, 255, 0.15);
+    backdrop-filter: blur(8px);
+    box-shadow: 0 8px 25px rgba(0, 0, 0, 0.6);
+    position: absolute;
+    left: 0;
+    width: 40%;
+    min-width: 300px;
+    max-width: 40%;
+    z-index: 10;
+}
+
+/* Styling the Title */
+.container h1 {
+    margin: 0 0 3vh;
+    font-size: clamp(32px, 5vw, 60px);
+    color: #fff;
+    text-shadow: 2px 2px 6px rgba(0, 0, 0, 0.7);
+    border-bottom: 3px solid #ffd700;
+    padding-bottom: 1vh;
+    position: relative;
+    animation: glow 3s ease-in-out infinite;
+}
+
+@keyframes glow {
+    0%, 100% { border-color: rgba(255, 215, 0, 0.4); }
+    50% { border-color: rgba(255, 215, 0, 1); }
+}
+
+/* Form and Button Styling */
+.section {
+    background: rgba(255, 255, 255, 0.1);
+    border-radius: 12px;
+    box-shadow: 0 0 12px rgba(0, 0, 0, 0.4);
+    padding: 2.5vh;
+    display: flex;
+    flex-direction: column;
+    gap: 2vh;
+    transition: transform 0.2s ease;
+}
+
+.section:hover {
+    transform: translateY(-2px);
+}
+
+h2 {
+    color: #ffd700;
+    text-shadow: 1px 1px 2px #000;
+    margin: 0;
+    font-size: clamp(22px, 3vw, 40px);
+}
+
+input[type="file"], button {
+    width: 100%;
+    box-sizing: border-box;
+    font-size: clamp(16px, 1.8vw, 22px);
+    padding: clamp(8px, 1.5vh, 14px);
+    border-radius: 6px;
+    border: none;
+}
+
+button {
+    background: linear-gradient(45deg, #ff7f50, #ff4500);
+    color: #fff;
+    cursor: pointer;
+    transition: 0.3s;
+    font-weight: bold;
+    border: 2px solid transparent;
+    animation: pulse 3s infinite;
+}
+
+button:hover {
+    background: linear-gradient(45deg, #ff4500, #ff7f50);
+    transform: scale(1.05);
+}
+
+@keyframes pulse {
+    0% { border-color: rgba(255, 215, 0, 0.2); box-shadow: 0 0 5px rgba(255, 215, 0, 0.3); }
+    50% { border-color: rgba(255, 215, 0, 0.9); box-shadow: 0 0 15px rgba(255, 215, 0, 0.6); }
+    100% { border-color: rgba(255, 215, 0, 0.2); box-shadow: 0 0 5px rgba(255, 215, 0, 0.3); }
+}
+
+p {
+    margin: 0;
+    font-size: clamp(16px, 2vw, 22px);
+}
+
+#downloadBtn, #downloadABtn, #downloadBBtn, #downloadUsernameBtn {
+    display: none;
+    background: linear-gradient(45deg, #32cd32, #228b22);
+}
+
+.progress-bar {
+    display: none;
+    height: 20px;
+    background: #32cd32;
+    text-align: center;
+    line-height: 20px;
+    color: #fff;
+    border-radius: 5px;
+    margin-top: 5px;
+}
+
+.info {
+    margin-top: 5px;
+}
+</style>
+</head>
+<body>
+<div class="bg-container"></div>
+<div class="container">
+<h1>📂 TXT 去重工具</h1>
+
+<!-- 上传背景 -->
+<div class="section">
+<h2>🎨 上传自定义背景图</h2>
+<form action="/upload_bg" method="post" enctype="multipart/form-data">
+<input type="file" name="bg_file" accept="image/*" required>
+<button type="submit">上传背景</button>
+</form>
+</div>
+
+<!-- 多文件合并去重 -->
+<div class="section">
+<h2>1️⃣ 多文件合并去重</h2>
+<form id="mergeForm" action="/merge" method="post" enctype="multipart/form-data">
+<input type="file" name="files" multiple required>
+<button type="submit">上传并合并去重</button>
+</form>
+<div class="progress-bar" id="mergeProgress">0%</div>
+<div class="info" id="mergeInfo"></div>
+<button id="downloadBtn">⬇️ 下载结果</button>
+</div>
+
+<!-- A、B 文件对比去重 -->
+<div class="section">
+<h2>2️⃣ A、B 文件对比去重</h2>
+<form id="compareForm" action="/compare" method="post" enctype="multipart/form-data">
+<p>文件 A: <input type="file" name="file_a" required></p>
+<p>文件 B: <input type="file" name="file_b" required></p>
+<button type="submit">上传并对比去重</button>
+</form>
+<div class="progress-bar" id="compareProgress">0%</div>
+<div class="info" id="compareInfo"></div>
+<div style="display:flex; gap:10px; margin-top:10px;">
+<button id="downloadABtn">⬇️ 下载 A 结果</button>
+<button id="downloadBBtn">⬇️ 下载 B 结果</button>
+</div>
+</div>
+
+<!-- 单文件用户名去重 -->
+<div class="section">
+<h2>3️⃣ 单文件用户名去重</h2>
+<form id="usernameForm" action="/username_dedup" method="post" enctype="multipart/form-data">
+<input type="file" name="username_file" required>
+<button type="submit">上传并去重</button>
+</form>
+<div class="progress-bar" id="usernameProgress">0%</div>
+<div class="info" id="usernameInfo"></div>
+<button id="downloadUsernameBtn">⬇️ 下载去重结果</button>
+</div>
+
+</div>
+
+<script>
+// 上传与显示去重数量的函数
+function uploadWithProgress(formId, progressId, infoId, downloadCallback){
+    const form = document.getElementById(formId);
+    const progress = document.getElementById(progressId);
+    const info = document.getElementById(infoId);
+
+    form.addEventListener("submit", function(e){
+        e.preventDefault();
+        progress.style.display = "block";
+        progress.style.width = "0%";
+        progress.textContent = "0%";
+        info.textContent = "";
+
+        const formData = new FormData(form);
+        const xhr = new XMLHttpRequest();
+
+        xhr.upload.addEventListener("progress", function(e){
+            if(e.lengthComputable){
+                const percent = Math.round((e.loaded / e.total) * 100);
+                progress.style.width = percent + "%";
+                progress.textContent = percent + "%";
+            }
+        });
+
+        xhr.onreadystatechange = function(){
+            if(xhr.readyState === 4){
+                progress.style.display = "none";
+                if(xhr.status === 200){
+                    const res = JSON.parse(xhr.responseText);
+                    if(res.status==="success"){
+                        info.textContent = downloadCallback(res);
+                    } else {
+                        info.textContent = `❌ ${res.message}`;
+                    }
+                } else {
+                    info.textContent = "❌ 上传失败";
+                }
+            }
+        }
+
+        xhr.open("POST", form.action, true);
+        xhr.send(formData);
+    });
+}
+
+// 合并去重
+uploadWithProgress("mergeForm","mergeProgress","mergeInfo", function(res){
+    document.getElementById("downloadBtn").style.display="block";
+    return `✅ 去重完成，总计 ${res.count} 条，点击下载。`;
+});
+document.getElementById("downloadBtn").addEventListener("click", ()=>{window.location.href="/download";setTimeout(()=>{location.reload();},500);});
+
+// 对比去重
+uploadWithProgress("compareForm","compareProgress","compareInfo", function(res){
+    document.getElementById("downloadABtn").style.display="inline-block";
+    document.getElementById("downloadBBtn").style.display="inline-block";
+    return `✅ 去重完成，A:${res.count_a} 条，B:${res.count_b} 条，选择下载。`;
+});
+document.getElementById("downloadABtn").addEventListener("click", ()=>{window.location.href="/download_a";setTimeout(()=>{location.reload();},500);});
+document.getElementById("downloadBBtn").addEventListener("click", ()=>{window.location.href="/download_b";setTimeout(()=>{location.reload();},500);});
+
+// 用户名单文件去重
+uploadWithProgress("usernameForm","usernameProgress","usernameInfo", function(res){
+    document.getElementById("downloadUsernameBtn").style.display="block";
+    return `✅ 用户名去重完成，共 ${res.count} 条，点击下载。`;
+});
+document.getElementById("downloadUsernameBtn").addEventListener("click", ()=>{window.location.href="/download_username";setTimeout(()=>{location.reload();},500);});
+</script>
+</body>
+</html>
