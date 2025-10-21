@@ -4,25 +4,142 @@
 <meta charset="UTF-8">
 <title>TXT 去重工具</title>
 <style>
-html, body { margin:0; padding:0; font-family:Arial,sans-serif; height:100%; overflow:hidden; color:#fff; display:flex; justify-content:flex-start; }
-.bg-container { position:fixed; top:0; left:0; width:100%; height:100%; background:url('{{ bg_url }}?t={{ timestamp }}') no-repeat center center; background-size:cover; z-index:-999; animation:floatBG 60s linear infinite alternate; }
-@keyframes floatBG { 0%{transform:translate(0,0) scale(1);}25%{transform:translate(-1vw,0.5vh) scale(1.01);}50%{transform:translate(-2vw,1vh) scale(1.02);}75%{transform:translate(-1vw,0.5vh) scale(1.01);}100%{transform:translate(0,0) scale(1);} }
-.container { display:flex; flex-direction:column; justify-content:flex-start; padding:4vh 4vw; background:rgba(0,0,0,0.55); border-radius:20px; border:1px solid rgba(255,255,255,0.15); backdrop-filter:blur(8px); box-shadow:0 8px 25px rgba(0,0,0,0.6); position:absolute; left:0; width:40%; min-width:300px; max-width:40%; z-index:10; }
-.container h1 { margin:0 0 3vh; font-size:clamp(32px,5vw,60px); color:#fff; text-shadow:2px 2px 6px rgba(0,0,0,0.7); border-bottom:3px solid #ffd700; padding-bottom:1vh; position:relative; animation:glow 3s ease-in-out infinite; }
-@keyframes glow { 0%,100%{border-color:rgba(255,215,0,0.4);}50%{border-color:rgba(255,215,0,1);} }
-.section { background:rgba(255,255,255,0.1); border-radius:12px; box-shadow:0 0 12px rgba(0,0,0,0.4); padding:2.5vh; display:flex; flex-direction:column; gap:2vh; transition:transform 0.2s ease; }
+html, body {
+  margin:0;
+  padding:0;
+  font-family:Arial,sans-serif;
+  height:100%;
+  color:#fff;
+  overflow:hidden; /* 背景固定 */
+}
+body {
+  display:flex;
+  justify-content:flex-start;
+}
+
+/* ===== 背景动画 ===== */
+.bg-container {
+  position:fixed;
+  top:0; left:0;
+  width:100%; height:100%;
+  background:url('{{ bg_url }}?t={{ timestamp }}') no-repeat center center;
+  background-size:cover;
+  z-index:-999;
+  animation:floatBG 60s linear infinite alternate;
+}
+@keyframes floatBG {
+  0%{transform:translate(0,0) scale(1);}
+  25%{transform:translate(-1vw,0.5vh) scale(1.01);}
+  50%{transform:translate(-2vw,1vh) scale(1.02);}
+  75%{transform:translate(-1vw,0.5vh) scale(1.01);}
+  100%{transform:translate(0,0) scale(1);}
+}
+
+/* ===== 主容器可滚动 ===== */
+.container {
+  display:flex;
+  flex-direction:column;
+  justify-content:flex-start;
+  padding:4vh 4vw;
+  background:rgba(0,0,0,0.55);
+  border-radius:20px;
+  border:1px solid rgba(255,255,255,0.15);
+  backdrop-filter:blur(8px);
+  box-shadow:0 8px 25px rgba(0,0,0,0.6);
+  position:absolute;
+  left:0;
+  width:40%;
+  min-width:300px;
+  max-width:40%;
+  z-index:10;
+  overflow-y:auto;        /* ✅ 允许垂直滚动 */
+  max-height:90vh;       /* ✅ 限制高度不超出屏幕 */
+  scroll-behavior:smooth; /* 平滑滚动 */
+}
+
+/* ===== 标题与特效 ===== */
+.container h1 {
+  margin:0 0 3vh;
+  font-size:clamp(32px,5vw,60px);
+  color:#fff;
+  text-shadow:2px 2px 6px rgba(0,0,0,0.7);
+  border-bottom:3px solid #ffd700;
+  padding-bottom:1vh;
+  position:relative;
+  animation:glow 3s ease-in-out infinite;
+}
+@keyframes glow {
+  0%,100%{border-color:rgba(255,215,0,0.4);}
+  50%{border-color:rgba(255,215,0,1);}
+}
+
+/* ===== 每个模块 ===== */
+.section {
+  background:rgba(255,255,255,0.1);
+  border-radius:12px;
+  box-shadow:0 0 12px rgba(0,0,0,0.4);
+  padding:2.5vh;
+  display:flex;
+  flex-direction:column;
+  gap:2vh;
+  transition:transform 0.2s ease;
+  margin-bottom:20px;
+}
 .section:hover { transform:translateY(-2px); }
+
 h2 { color:#ffd700; text-shadow:1px 1px 2px #000; margin:0; font-size:clamp(22px,3vw,40px); }
-input[type="file"], button { width:100%; box-sizing:border-box; font-size:clamp(16px,1.8vw,22px); padding:clamp(8px,1.5vh,14px); border-radius:6px; border:none; }
-button { background:linear-gradient(45deg,#ff7f50,#ff4500); color:#fff; cursor:pointer; transition:0.3s; font-weight:bold; border:2px solid transparent; animation:pulse 3s infinite; }
+input[type="file"], button {
+  width:100%;
+  box-sizing:border-box;
+  font-size:clamp(16px,1.8vw,22px);
+  padding:clamp(8px,1.5vh,14px);
+  border-radius:6px;
+  border:none;
+}
+button {
+  background:linear-gradient(45deg,#ff7f50,#ff4500);
+  color:#fff;
+  cursor:pointer;
+  transition:0.3s;
+  font-weight:bold;
+  border:2px solid transparent;
+  animation:pulse 3s infinite;
+}
 button:hover { background:linear-gradient(45deg,#ff4500,#ff7f50); transform:scale(1.05); }
-@keyframes pulse { 0%{border-color:rgba(255,215,0,0.2); box-shadow:0 0 5px rgba(255,215,0,0.3);}50%{border-color:rgba(255,215,0,0.9); box-shadow:0 0 15px rgba(255,215,0,0.6);}100%{border-color:rgba(255,215,0,0.2); box-shadow:0 0 5px rgba(255,215,0,0.3);} }
+@keyframes pulse {
+  0%{border-color:rgba(255,215,0,0.2); box-shadow:0 0 5px rgba(255,215,0,0.3);}
+  50%{border-color:rgba(255,215,0,0.9); box-shadow:0 0 15px rgba(255,215,0,0.6);}
+  100%{border-color:rgba(255,215,0,0.2); box-shadow:0 0 5px rgba(255,215,0,0.3);}
+}
+
 p { margin:0; font-size:clamp(16px,2vw,22px); }
-#downloadBtn,#downloadABtn,#downloadBBtn,#downloadUsernameBtn{display:none;background:linear-gradient(45deg,#32cd32,#228b22);}
-.progress-bar { display:none; height:20px; background:#32cd32; text-align:center; line-height:20px; color:#fff; border-radius:5px; margin-top:5px; }
+#downloadBtn,#downloadABtn,#downloadBBtn,#downloadUsernameBtn {
+  display:none;
+  background:linear-gradient(45deg,#32cd32,#228b22);
+}
+
+/* ===== 进度条样式 ===== */
+.progress-container {
+  width:100%;
+  background:rgba(255,255,255,0.15);
+  border-radius:5px;
+  overflow:hidden;
+  margin-top:5px;
+}
+.progress-bar {
+  display:none;
+  height:20px;
+  background:linear-gradient(90deg,#32cd32,#228b22);
+  text-align:center;
+  color:#fff;
+  font-size:14px;
+  border-radius:5px;
+  transition:width 0.3s ease;
+}
 .info { margin-top:5px; }
 </style>
 </head>
+
 <body>
 <div class="bg-container"></div>
 <div class="container">
@@ -44,7 +161,7 @@ p { margin:0; font-size:clamp(16px,2vw,22px); }
 <input type="file" name="files" multiple required>
 <button type="submit">上传并合并去重</button>
 </form>
-<div class="progress-bar" id="mergeProgress">0%</div>
+<div class="progress-container"><div class="progress-bar" id="mergeProgress">0%</div></div>
 <div class="info" id="mergeInfo"></div>
 <button id="downloadBtn">⬇️ 下载结果</button>
 </div>
@@ -57,7 +174,7 @@ p { margin:0; font-size:clamp(16px,2vw,22px); }
 <p>文件 B: <input type="file" name="file_b" required></p>
 <button type="submit">上传并对比去重</button>
 </form>
-<div class="progress-bar" id="compareProgress">0%</div>
+<div class="progress-container"><div class="progress-bar" id="compareProgress">0%</div></div>
 <div class="info" id="compareInfo"></div>
 <div style="display:flex; gap:10px; margin-top:10px;">
 <button id="downloadABtn">⬇️ 下载 A 结果</button>
@@ -72,76 +189,94 @@ p { margin:0; font-size:clamp(16px,2vw,22px); }
 <input type="file" name="username_file" required>
 <button type="submit">上传并去重</button>
 </form>
-<div class="progress-bar" id="usernameProgress">0%</div>
+<div class="progress-container"><div class="progress-bar" id="usernameProgress">0%</div></div>
 <div class="info" id="usernameInfo"></div>
 <button id="downloadUsernameBtn">⬇️ 下载去重结果</button>
 </div>
-
 </div>
 
 <script>
-// 轮询下载
-function pollDownload(taskId, btnId, info, displayText){
+// ====================== 状态轮询 ======================
+function pollDownload(taskId, btnId, info){
     const btn = document.getElementById(btnId);
     const interval = setInterval(()=>{
         fetch(`/status/${taskId}`)
-        .then(res=>{
-            if(res.status===200){
-                btn.style.display="block";
-                btn.onclick=()=>{res.blob().then(blob=>{const url=URL.createObjectURL(blob); const a=document.createElement('a'); a.href=url; a.download='MG_result.txt'; a.click(); URL.revokeObjectURL(url);});};
-                info.textContent=displayText;
+        .then(res=>res.json())
+        .then(data=>{
+            if(data.status==="ready"){
+                clearInterval(interval);
+                if(data.download_url_a && data.download_url_b){
+                    info.textContent=`✅ 去重完成，A 文件：${data.count_a} 条，B 文件：${data.count_b} 条`;
+                    document.getElementById('downloadABtn').style.display='block';
+                    document.getElementById('downloadBBtn').style.display='block';
+                    document.getElementById('downloadABtn').onclick=()=>{window.location.href=data.download_url_a;setTimeout(()=>location.reload(),1000);};
+                    document.getElementById('downloadBBtn').onclick=()=>{window.location.href=data.download_url_b;setTimeout(()=>location.reload(),1000);};
+                } else {
+                    info.textContent=`✅ 去重完成，条数：${data.count}`;
+                    btn.style.display='block';
+                    btn.onclick=()=>{window.location.href=data.download_url;setTimeout(()=>location.reload(),1000);};
+                }
+            } else if(data.status==="processing"){
+                info.textContent="⏳ 文件处理中，请稍候...";
+            } else {
+                info.textContent=`❌ ${data.message}`;
                 clearInterval(interval);
             }
-        }).catch(err=>{
-            info.textContent="❌ 任务处理中，请稍候...";
-        });
-    },2000);
+        })
+        .catch(()=>{info.textContent="❌ 状态获取失败"; clearInterval(interval);});
+    },1500);
 }
 
-// 上传并轮询
-function uploadWithPolling(formId, progressId, infoId, btnId, displayText){
+// ====================== 上传与进度条 ======================
+function uploadWithPolling(formId, progressId, infoId, btnId){
     const form=document.getElementById(formId);
     const progress=document.getElementById(progressId);
     const info=document.getElementById(infoId);
 
     form.addEventListener('submit', function(e){
         e.preventDefault();
+        const formData=new FormData(form);
+        const xhr=new XMLHttpRequest();
+
         progress.style.display='block';
         progress.style.width='0%';
         progress.textContent='0%';
-        info.textContent='';
+        info.textContent='⏳ 正在上传...';
 
-        const formData=new FormData(form);
-        const xhr=new XMLHttpRequest();
-        xhr.upload.addEventListener('progress', function(e){
+        xhr.upload.onprogress=function(e){
             if(e.lengthComputable){
                 const percent=Math.round((e.loaded/e.total)*100);
                 progress.style.width=percent+'%';
                 progress.textContent=percent+'%';
             }
-        });
-        xhr.onreadystatechange=function(){
-            if(xhr.readyState===4){
-                progress.style.display='none';
-                if(xhr.status===200){
-                    const res=JSON.parse(xhr.responseText);
-                    if(res.status==="success" && res.task_id){
-                        info.textContent="⏳ 文件上传成功，处理中...";
-                        pollDownload(res.task_id, btnId, info, displayText);
-                    } else { info.textContent=`❌ ${res.message}`; }
-                } else { info.textContent="❌ 上传失败"; }
+        };
+
+        xhr.onload=function(){
+            if(xhr.status===200){
+                const res=JSON.parse(xhr.responseText);
+                if(res.status==='success'){
+                    info.textContent='✅ 上传完成，处理中...';
+                    pollDownload(res.task_id, btnId, info);
+                } else {
+                    info.textContent='❌ '+res.message;
+                }
+            } else {
+                info.textContent='❌ 上传失败';
             }
         };
+
+        xhr.onerror=function(){
+            info.textContent='❌ 网络错误';
+        };
+
         xhr.open('POST', form.action, true);
         xhr.send(formData);
     });
 }
 
-// 初始化
-uploadWithPolling("mergeForm","mergeProgress","mergeInfo","downloadBtn","✅ 去重完成，点击下载。");
-uploadWithPolling("compareForm","compareProgress","compareInfo","downloadABtn","✅ 对比去重完成，点击下载 A 结果。");
-uploadWithPolling("compareForm","compareProgress","compareInfo","downloadBBtn","✅ 对比去重完成，点击下载 B 结果。");
-uploadWithPolling("usernameForm","usernameProgress","usernameInfo","downloadUsernameBtn","✅ 用户名去重完成，点击下载。");
+uploadWithPolling('mergeForm','mergeProgress','mergeInfo','downloadBtn');
+uploadWithPolling('compareForm','compareProgress','compareInfo','downloadBtn');
+uploadWithPolling('usernameForm','usernameProgress','usernameInfo','downloadUsernameBtn');
 </script>
 </body>
 </html>
