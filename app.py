@@ -5,6 +5,7 @@ import re
 import unicodedata
 from werkzeug.utils import secure_filename
 from time import time
+import threading
 
 app = Flask(__name__)
 app.secret_key = "super_secret_key"
@@ -22,7 +23,6 @@ def clean_line(line: str) -> str:
     line = unicodedata.normalize('NFKC', line)
     return line.lower()
 
-# Blacklist 可选，如果想开启过滤，把 ENABLE_BLACKLIST 改为 True
 ENABLE_BLACKLIST = False
 blacklist = [
     "haihua", "chuhai", "benchi", "818", "databox", "dolphin", 
@@ -30,14 +30,10 @@ blacklist = [
 ]
 
 def is_valid_username(name: str) -> bool:
-    """判断用户名是否有效"""
     if not name:
-        return False  # 去掉空行
-    
-    # 检查结尾是否包含 "bot"
+        return False
     if name.lower().endswith("bot"):
         return False
-    
     if ENABLE_BLACKLIST:
         if 'bot' in name:
             return False
@@ -46,28 +42,62 @@ def is_valid_username(name: str) -> bool:
                 return False
     return True
 
-# ========= 去重函数 =========
-def merge_dedup(files):
+# ========= 后台任务管理 =========
+tasks = {}  # task_id -> 文件路径
+
+def process_merge_task(file_paths, task_id):
     """多文件合并去重"""
-    all_data = set()
-    for f in files:
-        f.seek(0)
-        for line in f.read().decode("utf-8-sig").splitlines():
-            cleaned = clean_line(line)
-            if is_valid_username(cleaned):
-                all_data.add(cleaned)
-    return sorted(all_data)
+    seen = set()
+    output_file = tempfile.NamedTemporaryFile(delete=False, suffix="_merge.txt", mode="w", encoding="utf-8")
+    for path in file_paths:
+        with open(path, "r", encoding="utf-8-sig") as f:
+            for line in f:
+                line_clean = clean_line(line)
+                if is_valid_username(line_clean) and line_clean not in seen:
+                    seen.add(line_clean)
+                    output_file.write(line_clean + "\n")
+    output_file.close()
+    tasks[task_id] = output_file.name
 
-def compare_dedup(file_a, file_b):
+def process_compare_task(file_a_path, file_b_path, task_id):
     """AB 文件对比去重"""
-    file_a.seek(0)
-    file_b.seek(0)
-    data_a = {clean_line(line) for line in file_a.read().decode("utf-8-sig").splitlines() if is_valid_username(clean_line(line))}
-    data_b = {clean_line(line) for line in file_b.read().decode("utf-8-sig").splitlines() if is_valid_username(clean_line(line))}
+    set_a, set_b = set(), set()
+    with open(file_a_path, "r", encoding="utf-8-sig") as f:
+        for line in f:
+            line_clean = clean_line(line)
+            if is_valid_username(line_clean):
+                set_a.add(line_clean)
+    with open(file_b_path, "r", encoding="utf-8-sig") as f:
+        for line in f:
+            line_clean = clean_line(line)
+            if is_valid_username(line_clean):
+                set_b.add(line_clean)
+    unique_a = set_a - set_b
+    unique_b = set_b - set_a
 
-    unique_a = sorted(data_a - data_b)
-    unique_b = sorted(data_b - data_a)
-    return unique_a, unique_b
+    output_a = tempfile.NamedTemporaryFile(delete=False, suffix="_A.txt", mode="w", encoding="utf-8")
+    output_b = tempfile.NamedTemporaryFile(delete=False, suffix="_B.txt", mode="w", encoding="utf-8")
+    for line in sorted(unique_a):
+        output_a.write(line + "\n")
+    for line in sorted(unique_b):
+        output_b.write(line + "\n")
+    output_a.close()
+    output_b.close()
+    tasks[task_id+"_A"] = output_a.name
+    tasks[task_id+"_B"] = output_b.name
+
+def process_username_task(file_path, task_id):
+    """单文件用户名去重"""
+    seen = set()
+    output_file = tempfile.NamedTemporaryFile(delete=False, suffix="_username.txt", mode="w", encoding="utf-8")
+    with open(file_path, "r", encoding="utf-8-sig") as f:
+        for line in f:
+            line_clean = clean_line(line)
+            if is_valid_username(line_clean) and line_clean not in seen:
+                seen.add(line_clean)
+                output_file.write(line_clean + "\n")
+    output_file.close()
+    tasks[task_id] = output_file.name
 
 # ========= 网页路由 =========
 @app.route("/", methods=["GET"])
@@ -86,84 +116,57 @@ def upload_bg():
     session["bg_url"] = url_for('static', filename=filename)
     return redirect(url_for("index"))
 
+# ========= 合并去重 =========
 @app.route("/merge", methods=["POST"])
 def merge():
     uploaded_files = request.files.getlist("files")
     if not uploaded_files:
         return jsonify({"status":"error","message":"请至少上传一个文件"})
-    result = merge_dedup(uploaded_files)
-    tmp_file = tempfile.NamedTemporaryFile(delete=False, suffix=".txt", mode="w", encoding="utf-8")
-    tmp_file.write("\n".join(result))
-    tmp_file.close()
-    session["merge_file"] = tmp_file.name
-    return jsonify({"status":"success","count":len(result)})
+    tmp_paths = []
+    for f in uploaded_files:
+        tmp_file = tempfile.NamedTemporaryFile(delete=False, suffix=".txt")
+        f.save(tmp_file.name)
+        tmp_paths.append(tmp_file.name)
+    task_id = str(len(tasks)+1)
+    threading.Thread(target=process_merge_task, args=(tmp_paths, task_id)).start()
+    return jsonify({"status":"success","task_id":task_id})
 
+# ========= 对比去重 =========
 @app.route("/compare", methods=["POST"])
 def compare():
     file_a = request.files.get("file_a")
     file_b = request.files.get("file_b")
     if not file_a or not file_b:
         return jsonify({"status":"error","message":"请上传 A 和 B 两个文件"})
-    unique_a, unique_b = compare_dedup(file_a, file_b)
-    tmp_a = tempfile.NamedTemporaryFile(delete=False, suffix="_A.txt", mode="w", encoding="utf-8")
-    tmp_a.write("\n".join(unique_a))
-    tmp_a.close()
-    tmp_b = tempfile.NamedTemporaryFile(delete=False, suffix="_B.txt", mode="w", encoding="utf-8")
-    tmp_b.write("\n".join(unique_b))
-    tmp_b.close()
-    session["compare_a"] = tmp_a.name
-    session["compare_b"] = tmp_b.name
-    return jsonify({"status":"success","count_a":len(unique_a),"count_b":len(unique_b)})
+    tmp_a = tempfile.NamedTemporaryFile(delete=False, suffix="_A_input.txt")
+    tmp_b = tempfile.NamedTemporaryFile(delete=False, suffix="_B_input.txt")
+    file_a.save(tmp_a.name)
+    file_b.save(tmp_b.name)
+    task_id = str(len(tasks)+1)
+    threading.Thread(target=process_compare_task, args=(tmp_a.name, tmp_b.name, task_id)).start()
+    return jsonify({"status":"success","task_id":task_id})
 
+# ========= 用户名去重 =========
 @app.route("/username_dedup", methods=["POST"])
 def username_dedup():
     uploaded_file = request.files.get("username_file")
     if not uploaded_file:
         return jsonify({"status":"error","message":"请上传文件"})
-    
-    uploaded_file.seek(0)
-    result = sorted({clean_line(line) for line in uploaded_file.read().decode("utf-8-sig").splitlines() if is_valid_username(clean_line(line))})
-    
-    tmp_file = tempfile.NamedTemporaryFile(delete=False, suffix="_username.txt", mode="w", encoding="utf-8")
-    tmp_file.write("\n".join(result))
-    tmp_file.close()
-    session["username_file"] = tmp_file.name
-    return jsonify({"status":"success","count":len(result)})
+    tmp_file = tempfile.NamedTemporaryFile(delete=False, suffix="_input.txt")
+    uploaded_file.save(tmp_file.name)
+    task_id = str(len(tasks)+1)
+    threading.Thread(target=process_username_task, args=(tmp_file.name, task_id)).start()
+    return jsonify({"status":"success","task_id":task_id})
 
-# ========= 下载 =========
-@app.route("/download")
-def download():
-    file_path = session.get("merge_file")
-    if not file_path or not os.path.exists(file_path):
-        return "❌ 没有可下载的文件"
-    count = len(open(file_path, "r", encoding="utf-8").readlines())
-    return send_file(file_path, as_attachment=True, download_name=f"MG_{count}.txt")
-
-@app.route("/download_a")
-def download_a():
-    file_path = session.get("compare_a")
-    if not file_path or not os.path.exists(file_path):
-        return "❌ 没有可下载的 A 文件"
-    count = len(open(file_path, "r", encoding="utf-8").readlines())
-    return send_file(file_path, as_attachment=True, download_name=f"MG_{count}.txt")
-
-@app.route("/download_b")
-def download_b():
-    file_path = session.get("compare_b")
-    if not file_path or not os.path.exists(file_path):
-        return "❌ 没有可下载的 B 文件"
-    count = len(open(file_path, "r", encoding="utf-8").readlines())
-    return send_file(file_path, as_attachment=True, download_name=f"MG_{count}.txt")
-
-@app.route("/download_username")
-def download_username():
-    file_path = session.get("username_file")
-    if not file_path or not os.path.exists(file_path):
-        return "❌ 没有可下载的文件"
-    count = len(open(file_path, "r", encoding="utf-8").readlines())
-    return send_file(file_path, as_attachment=True, download_name=f"MG_{count}.txt")
+# ========= 下载/任务状态 =========
+@app.route("/status/<task_id>")
+def status(task_id):
+    if task_id in tasks:
+        file_path = tasks.pop(task_id)
+        count = len(open(file_path, "r", encoding="utf-8").readlines())
+        return send_file(file_path, as_attachment=True, download_name=f"MG_{count}.txt")
+    else:
+        return "<h3>处理中，请稍后刷新页面...</h3>"
 
 if __name__ == "__main__":
     app.run(port=5001)
-
-
